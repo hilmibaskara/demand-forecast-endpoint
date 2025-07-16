@@ -59,13 +59,29 @@ async def upload_sales_history(
     date: str = Form(...),
     file: UploadFile = File(...)
 ):
+    """
+    Upload and process sales history using ETL logic
+    
+    This endpoint now uses the enhanced ETL process that:
+    - Cleans and filters the sales data
+    - Identifies perishable vs non-perishable products
+    - Maps menu items to ingredient requirements
+    - Updates historical ingredient tracking
+    - Creates daily ingredient summaries
+    """
     content = await file.read()
-    df = pd.read_csv(io.BytesIO(content))
+    
+    # Read CSV with proper handling of the format (skip header rows, set column names)
+    df = pd.read_csv(io.BytesIO(content), skiprows=2, names=["PRODUK", "JUMLAH", "HARGA"])
+    
+    # Remove the first row if it contains the column headers
+    if len(df) > 0 and str(df.iloc[0]['PRODUK']).upper() == 'PRODUK':
+        df = df.iloc[1:].reset_index(drop=True)
 
     result = sales_service.process_sales_history(date, df)
 
     return SalesUploadResponse(
-        message=f"Sales history uploaded and processed for {date}",
+        message=f"Sales history uploaded and processed for {date} using ETL logic",
         sales_date=date,
         filename=file.filename,
         status="success",
@@ -73,5 +89,7 @@ async def upload_sales_history(
         num_unique_products=result["num_unique_products"],
         perishable_products=result["perishable_products"],
         non_perishable_products=result["non_perishable_products"],
-        ingredient_summary_file=result["ingredient_summary_file"]
+        # ingredient_summary_file=result["ingredient_summary_file"],
+        historical_file=result["historical_file"],
+        ingredients_needed=result["ingredients_needed"]
     )
